@@ -44,6 +44,12 @@ button {
   padding: 10px;
 }
 
+.app[data-text-select="off"] {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 .shell {
   display: grid;
   grid-template-columns: minmax(0, 1fr);

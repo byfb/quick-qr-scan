@@ -75,6 +75,27 @@ describe("Quick QR Scan app shell", () => {
     expect(root.querySelector<HTMLElement>("[data-role='history-drawer']")?.dataset.state).toBe("open");
   });
 
+  it("closes the history drawer when clicking outside it", () => {
+    const root = document.createElement("div");
+    const store = createMemoryStore();
+    saveScanToStore(store, "ASSET-42", new Date("2026-06-13T10:00:00Z"));
+
+    createScannerApp(root, { storage: store });
+
+    root.querySelector<HTMLButtonElement>('[data-action="toggle-history"]')?.click();
+    root.querySelector<HTMLElement>("[data-role='camera-stage']")?.click();
+
+    expect(root.querySelector<HTMLElement>("[data-role='history-drawer']")?.dataset.state).toBe("closed");
+  });
+
+  it("marks the app shell as no-select to prevent accidental text highlighting", () => {
+    const root = document.createElement("div");
+
+    createScannerApp(root, { storage: createMemoryStore() });
+
+    expect(root.querySelector<HTMLElement>(".app")?.dataset.textSelect).toBe("off");
+  });
+
   it("shows icon actions on recent scans", () => {
     const root = document.createElement("div");
     const store = createMemoryStore();

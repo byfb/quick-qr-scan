@@ -83,7 +83,7 @@ export function createScannerApp(root: HTMLElement, dependencies: ScannerAppDepe
   const cancelFrame = dependencies.cancelFrame ?? globalThis.cancelAnimationFrame.bind(globalThis);
 
   root.innerHTML = `
-    <main class="app">
+    <main class="app" data-text-select="off">
       <div class="shell">
         <section class="workspace" aria-label="Scanner workspace">
           <div class="primary-column">
@@ -272,6 +272,19 @@ export function createScannerApp(root: HTMLElement, dependencies: ScannerAppDepe
       setHistoryDrawer(false);
     }
     state.swipeStartX = null;
+  });
+
+  root.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof Node) || !state.historyDrawerOpen) {
+      return;
+    }
+
+    if (historyDrawer.contains(target) || toggleHistoryButton.contains(target)) {
+      return;
+    }
+
+    setHistoryDrawer(false);
   });
 
   copyButton.addEventListener("click", () => {
