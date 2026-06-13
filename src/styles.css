@@ -10,13 +10,23 @@
   box-sizing: border-box;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 body {
   margin: 0;
   min-width: 320px;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
   background:
     radial-gradient(circle at top left, rgba(34, 197, 94, 0.12), transparent 34rem),
     linear-gradient(135deg, #10151f 0%, #151b28 52%, #0d1119 100%);
+}
+
+html {
+  height: 100%;
+  overflow: hidden;
 }
 
 button,
@@ -29,48 +39,23 @@ button {
 }
 
 .app {
-  min-height: 100vh;
-  padding: 24px;
+  height: 100dvh;
+  overflow: hidden;
+  padding: 10px;
 }
 
 .shell {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 18px;
+  height: 100%;
   width: min(1180px, 100%);
   margin: 0 auto;
 }
 
-.topbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 4px 0 8px;
-}
-
-.brand {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.brand h1 {
-  margin: 0;
-  font-size: 1.55rem;
-  line-height: 1.1;
-  letter-spacing: 0;
-}
-
-.brand span {
-  color: #99a8bd;
-  font-size: 0.9rem;
-}
-
 .status-pill {
-  min-height: 36px;
-  max-width: 50%;
-  padding: 8px 12px;
+  min-height: 32px;
+  max-width: 38%;
+  padding: 7px 10px;
   border: 1px solid rgba(148, 163, 184, 0.22);
   border-radius: 8px;
   background: rgba(15, 23, 42, 0.78);
@@ -81,13 +66,20 @@ button {
 
 .workspace {
   display: grid;
+  height: 100%;
   grid-template-columns: minmax(0, 1fr);
-  gap: 16px;
+  min-height: 0;
+}
+
+.primary-column {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto auto;
+  gap: 10px;
+  min-height: 0;
 }
 
 .scanner-panel,
 .result-panel,
-.history-panel,
 .controls-panel {
   border: 1px solid rgba(148, 163, 184, 0.18);
   border-radius: 8px;
@@ -96,14 +88,17 @@ button {
 }
 
 .scanner-panel {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
   overflow: hidden;
+  min-height: 0;
 }
 
 .camera-stage {
   position: relative;
-  aspect-ratio: 4 / 3;
-  min-height: 260px;
+  min-height: 0;
   background: #080d14;
+  cursor: crosshair;
   overflow: hidden;
 }
 
@@ -179,11 +174,12 @@ video {
 
 .camera-toolbar {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 8px;
   align-items: center;
   justify-content: space-between;
-  padding: 12px;
+  min-height: 48px;
+  padding: 8px;
   border-top: 1px solid rgba(148, 163, 184, 0.16);
 }
 
@@ -194,8 +190,8 @@ video {
 }
 
 .btn {
-  min-height: 38px;
-  padding: 9px 13px;
+  min-height: 34px;
+  padding: 8px 11px;
   border-radius: 8px;
   background: #223047;
   color: #f8fafc;
@@ -232,6 +228,30 @@ video {
   opacity: 0.48;
 }
 
+.icon-btn {
+  display: inline-grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.72);
+  color: #dbeafe;
+  cursor: pointer;
+}
+
+.icon-btn:hover {
+  background: #2c3d59;
+}
+
+.icon-btn.danger {
+  color: #fed7aa;
+}
+
+.history-trigger {
+  flex: 0 0 auto;
+}
+
 .capability-pills {
   display: flex;
   flex-wrap: wrap;
@@ -247,7 +267,9 @@ video {
 }
 
 .controls-panel {
-  padding: 12px 14px;
+  overflow: auto;
+  max-height: 38dvh;
+  padding: 9px 11px;
 }
 
 .controls-panel summary {
@@ -260,7 +282,7 @@ video {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 12px;
-  padding-top: 14px;
+  padding-top: 10px;
 }
 
 .control {
@@ -274,9 +296,11 @@ video {
   width: 100%;
 }
 
-.result-panel,
-.history-panel {
-  padding: 16px;
+.result-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px 10px;
+  padding: 10px;
 }
 
 .section-title {
@@ -294,8 +318,9 @@ video {
 }
 
 .result-value {
-  min-height: 72px;
-  padding: 12px;
+  max-height: 88px;
+  min-height: 52px;
+  padding: 10px;
   border: 1px solid rgba(148, 163, 184, 0.16);
   border-radius: 8px;
   background: rgba(2, 6, 23, 0.48);
@@ -311,29 +336,67 @@ video {
 }
 
 .result-meta {
-  margin-top: 8px;
+  grid-column: 1 / -1;
+  margin: 0;
   color: #99a8bd;
   font-size: 0.85rem;
 }
 
+.result-actions {
+  display: flex;
+  gap: 6px;
+  align-items: start;
+}
+
+.history-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  z-index: 20;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  width: min(380px, calc(100vw - 42px));
+  height: 100dvh;
+  padding: 10px;
+  border-left: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(15, 23, 42, 0.96);
+  box-shadow: -18px 0 50px rgba(0, 0, 0, 0.42);
+  transition: transform 180ms ease;
+}
+
+.history-panel[data-state="closed"] {
+  transform: translateX(calc(100% - 18px));
+}
+
+.history-panel[data-state="open"] {
+  transform: translateX(0);
+}
+
+.drawer-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-bottom: 8px;
+}
+
 .history-list {
   display: grid;
+  align-content: start;
   gap: 8px;
-  max-height: 420px;
   overflow: auto;
+  min-height: 0;
 }
 
 .history-item {
   display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   width: 100%;
   gap: 4px;
-  padding: 10px;
+  padding: 8px;
   border: 1px solid rgba(148, 163, 184, 0.16);
   border-radius: 8px;
   background: rgba(15, 23, 42, 0.72);
   color: #e2e8f0;
-  text-align: left;
-  cursor: pointer;
 }
 
 .history-item:hover,
@@ -348,6 +411,24 @@ video {
   font-size: 0.86rem;
 }
 
+.history-select {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.history-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 5px;
+  align-items: center;
+}
+
 .history-meta {
   color: #8ea0b8;
   font-size: 0.78rem;
@@ -358,39 +439,41 @@ video {
 }
 
 @media (min-width: 980px) {
-  .workspace {
-    grid-template-columns: minmax(0, 1fr) 340px;
-    align-items: start;
-  }
-
   .primary-column {
     display: grid;
+    grid-template-rows: minmax(0, 1fr) auto auto;
     gap: 16px;
-  }
-
-  .history-panel {
-    position: sticky;
-    top: 20px;
+    min-height: 0;
   }
 }
 
 @media (max-width: 620px) {
   .app {
-    padding: 14px;
-  }
-
-  .topbar {
-    align-items: flex-start;
-    flex-direction: column;
+    padding: 8px;
   }
 
   .status-pill {
-    width: 100%;
+    width: auto;
     max-width: none;
     text-align: left;
   }
 
-  .camera-stage {
-    min-height: 220px;
+  .primary-column {
+    display: grid;
+    grid-template-rows: minmax(0, 1fr) auto auto;
+    gap: 8px;
+    min-height: 0;
+  }
+
+  .camera-toolbar {
+    flex-wrap: wrap;
+  }
+
+  .capability-pills {
+    display: none;
+  }
+
+  .controls-panel {
+    max-height: 28dvh;
   }
 }

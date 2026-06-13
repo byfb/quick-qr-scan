@@ -66,6 +66,9 @@ interface ScannerState {
   selectedValue: string | null;
   latestValue: string | null;
   rafId: number | null;
+  autoControlEnabled: boolean;
+  historyDrawerOpen: boolean;
+  swipeStartX: number | null;
 }
 
 const emptyCapabilities = normalizeCameraCapabilities({});
@@ -82,18 +85,10 @@ export function createScannerApp(root: HTMLElement, dependencies: ScannerAppDepe
   root.innerHTML = `
     <main class="app">
       <div class="shell">
-        <header class="topbar">
-          <div class="brand">
-            <h1>Quick QR Scan</h1>
-            <span>Fast camera scanner with local scan history</span>
-          </div>
-          <div class="status-pill" data-role="status">Ready</div>
-        </header>
-
         <section class="workspace" aria-label="Scanner workspace">
           <div class="primary-column">
             <section class="scanner-panel" aria-label="Camera scanner">
-              <div class="camera-stage">
+              <div class="camera-stage" data-role="camera-stage">
                 <video data-role="video" playsinline autoplay muted></video>
                 <canvas class="overlay" data-role="overlay"></canvas>
                 <div class="guide" aria-hidden="true"><span></span></div>
@@ -105,11 +100,15 @@ export function createScannerApp(root: HTMLElement, dependencies: ScannerAppDepe
                   <button class="btn" data-action="scan-again" type="button" hidden>Scan Again</button>
                   <button class="btn ghost" data-action="stop" type="button" hidden>Stop Camera</button>
                 </div>
+                <div class="status-pill" data-role="status">Ready</div>
                 <div class="capability-pills" data-role="capabilities"></div>
+                <button class="icon-btn history-trigger" data-action="toggle-history" type="button" aria-label="Open recent scans" title="Recent scans">
+                  ${icon("list")}
+                </button>
               </div>
             </section>
 
-            <details class="controls-panel">
+            <details class="controls-panel" data-role="camera-controls">
               <summary>Camera controls</summary>
               <div class="controls-grid">
                 <label class="control" data-role="zoom-control" hidden>
@@ -136,23 +135,30 @@ export function createScannerApp(root: HTMLElement, dependencies: ScannerAppDepe
             </details>
 
             <section class="result-panel" aria-label="Latest result">
-              <div class="section-title">
-                <h2>Latest result</h2>
-                <div class="button-row">
-                  <button class="btn ghost" data-action="copy-selected" type="button" hidden>Copy</button>
-                  <button class="btn ghost" data-action="open-selected" type="button" hidden>Open</button>
-                  <button class="btn ghost" data-action="delete-selected" type="button" hidden>Delete</button>
-                </div>
-              </div>
               <div class="result-value muted" data-role="result">No result yet.</div>
               <div class="result-meta" data-role="result-meta"></div>
+              <div class="result-actions">
+                <button class="icon-btn" data-action="copy-selected" type="button" hidden aria-label="Copy selected result" title="Copy">
+                  ${icon("copy")}
+                </button>
+                <button class="icon-btn" data-action="open-selected" type="button" hidden aria-label="Open selected result" title="Open">
+                  ${icon("open")}
+                </button>
+                <button class="icon-btn" data-action="delete-selected" type="button" hidden aria-label="Delete selected result" title="Delete">
+                  ${icon("trash")}
+                </button>
+              </div>
             </section>
           </div>
 
-          <aside class="history-panel" aria-label="Recent scans">
-            <div class="section-title">
-              <h2>Recent scans</h2>
-              <button class="btn warning" data-action="clear-history" type="button">Clear all</button>
+          <aside class="history-panel" data-role="history-drawer" data-state="closed" aria-label="Recent scans" aria-hidden="true">
+            <div class="drawer-actions">
+              <button class="icon-btn" data-action="close-history" type="button" aria-label="Close recent scans" title="Close">
+                ${icon("close")}
+              </button>
+              <button class="icon-btn danger" data-action="clear-history" type="button" aria-label="Clear all scans" title="Clear all">
+                ${icon("trash")}
+              </button>
             </div>
             <div class="history-list" data-role="history"></div>
           </aside>
@@ -177,9 +183,13 @@ export function createScannerApp(root: HTMLElement, dependencies: ScannerAppDepe
     selectedValue: null,
     latestValue: null,
     rafId: null,
+    autoControlEnabled: true,
+    historyDrawerOpen: false,
+    swipeStartX: null,
   };
 
   const video = requireElement<HTMLVideoElement>(root, "[data-role='video']");
+  const cameraStage = requireElement<HTMLElement>(root, "[data-role='camera-stage']");
   const overlayCanvas = requireElement<HTMLCanvasElement>(root, "[data-role='overlay']");
   const processingCanvas = requireElement<HTMLCanvasElement>(root, "[data-role='processing']");
   const status = requireElement<HTMLElement>(root, "[data-role='status']");
@@ -195,6 +205,9 @@ export function createScannerApp(root: HTMLElement, dependencies: ScannerAppDepe
   const openButton = requireElement<HTMLButtonElement>(root, "[data-action='open-selected']");
   const deleteButton = requireElement<HTMLButtonElement>(root, "[data-action='delete-selected']");
   const clearButton = requireElement<HTMLButtonElement>(root, "[data-action='clear-history']");
+  const toggleHistoryButton = requireElement<HTMLButtonElement>(root, "[data-action='toggle-history']");
+  const closeHistoryButton = requireElement<HTMLButtonElement>(root, "[data-action='close-history']");
+  const historyDrawer = requireElement<HTMLElement>(root, "[data-role='history-drawer']");
   const zoomControl = requireElement<HTMLElement>(root, "[data-role='zoom-control']");
   const zoomInput = requireElement<HTMLInputElement>(root, "[data-action='zoom']");
   const torchControl = requireElement<HTMLElement>(root, "[data-role='torch-control']");
@@ -202,6 +215,7 @@ export function createScannerApp(root: HTMLElement, dependencies: ScannerAppDepe
   const brightnessInput = requireElement<HTMLInputElement>(root, "[data-action='brightness']");
   const contrastInput = requireElement<HTMLInputElement>(root, "[data-action='contrast']");
   const resetCameraButton = requireElement<HTMLButtonElement>(root, "[data-action='reset-camera']");
+  const controlsPanel = requireElement<HTMLDetailsElement>(root, "[data-role='camera-controls']");
 
   let history = safeReadHistory(storage);
   let nativeDetector: Promise<BarcodeDetectorLike | null> | null = null;
@@ -221,12 +235,43 @@ export function createScannerApp(root: HTMLElement, dependencies: ScannerAppDepe
     stopCamera("Camera stopped.");
   });
 
+  toggleHistoryButton.addEventListener("click", () => {
+    setHistoryDrawer(!state.historyDrawerOpen);
+  });
+
+  closeHistoryButton.addEventListener("click", () => {
+    setHistoryDrawer(false);
+  });
+
   clearButton.addEventListener("click", () => {
     clearStoredHistory(storage);
     history = [];
     state.selectedValue = null;
     renderHistory();
     renderSelectedResult(state.latestValue);
+  });
+
+  cameraStage.addEventListener("pointerup", (event) => {
+    void handleCameraStagePress(event);
+  });
+
+  root.addEventListener("pointerdown", (event) => {
+    state.swipeStartX = event.clientX;
+  });
+
+  root.addEventListener("pointerup", (event) => {
+    if (state.swipeStartX === null) {
+      return;
+    }
+
+    const deltaX = event.clientX - state.swipeStartX;
+    const viewportWidth = globalThis.innerWidth || document.documentElement.clientWidth;
+    if (!state.historyDrawerOpen && state.swipeStartX > viewportWidth - 28 && deltaX < -42) {
+      setHistoryDrawer(true);
+    } else if (state.historyDrawerOpen && deltaX > 42) {
+      setHistoryDrawer(false);
+    }
+    state.swipeStartX = null;
   });
 
   copyButton.addEventListener("click", () => {
@@ -263,22 +308,27 @@ export function createScannerApp(root: HTMLElement, dependencies: ScannerAppDepe
   });
 
   zoomInput.addEventListener("input", () => {
+    disableAutoControl("Manual camera control active.");
     void applyZoom(Number(zoomInput.value));
   });
 
   torchButton.addEventListener("click", () => {
+    disableAutoControl("Manual camera control active.");
     void applyTorch(!state.torch);
   });
 
   brightnessInput.addEventListener("input", () => {
+    disableAutoControl("Manual camera control active.");
     state.brightness = Number(brightnessInput.value);
   });
 
   contrastInput.addEventListener("input", () => {
+    disableAutoControl("Manual camera control active.");
     state.contrast = Number(contrastInput.value);
   });
 
   resetCameraButton.addEventListener("click", () => {
+    disableAutoControl("Manual camera control active.");
     state.brightness = 0;
     state.contrast = 1;
     brightnessInput.value = "0";
@@ -286,6 +336,12 @@ export function createScannerApp(root: HTMLElement, dependencies: ScannerAppDepe
     void applyTorch(false);
     void applyZoom(state.capabilities.zoom.min);
     setStatus("Camera controls reset.");
+  });
+
+  controlsPanel.addEventListener("toggle", () => {
+    if (controlsPanel.open) {
+      disableAutoControl("Manual camera control active.");
+    }
   });
 
   async function startCamera(): Promise<void> {
@@ -333,7 +389,9 @@ export function createScannerApp(root: HTMLElement, dependencies: ScannerAppDepe
     const rawCapabilities = readTrackCapabilities(state.track);
     state.capabilities = normalizeCameraCapabilities(rawCapabilities);
     state.currentZoom = state.capabilities.zoom.min;
-    await applyTrackConstraints();
+    if (state.autoControlEnabled) {
+      await applyTrackConstraints();
+    }
 
     video.srcObject = stream;
     await video.play().catch(() => undefined);
@@ -513,12 +571,14 @@ export function createScannerApp(root: HTMLElement, dependencies: ScannerAppDepe
     state.lastZoomAttemptAt = performance.now();
     scanAgainButton.hidden = true;
     setStatus("Scanning. Point camera at QR code.");
-    void applyZoom(state.capabilities.zoom.min);
+    if (state.autoControlEnabled) {
+      void applyZoom(state.capabilities.zoom.min);
+    }
     scheduleLoop();
   }
 
   async function maybeAutoZoom(timestamp: number): Promise<void> {
-    if (!state.capabilities.zoom.supported) {
+    if (!state.autoControlEnabled || !state.capabilities.zoom.supported) {
       return;
     }
 
@@ -579,6 +639,55 @@ export function createScannerApp(root: HTMLElement, dependencies: ScannerAppDepe
       .catch(() => undefined);
   }
 
+  async function handleCameraStagePress(event: PointerEvent): Promise<void> {
+    if (!state.stream) {
+      return;
+    }
+
+    disableAutoControl("Manual focus active. Tap again anytime to rescan.");
+    await applyFocusAtPoint(event.clientX, event.clientY);
+
+    if (!state.scanning) {
+      resumeScanning();
+    }
+  }
+
+  async function applyFocusAtPoint(clientX: number, clientY: number): Promise<void> {
+    if (!state.track) {
+      return;
+    }
+
+    const rect = cameraStage.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) {
+      return;
+    }
+
+    const point = {
+      x: clampNumber((clientX - rect.left) / rect.width, 0, 1),
+      y: clampNumber((clientY - rect.top) / rect.height, 0, 1),
+    };
+
+    await state.track
+      .applyConstraints({
+        advanced: [{ focusMode: "single-shot" }, { pointsOfInterest: [point] }],
+      } as unknown as MediaTrackConstraints)
+      .catch(() => undefined);
+  }
+
+  function disableAutoControl(message: string): void {
+    state.autoControlEnabled = false;
+    root.querySelector(".app")?.setAttribute("data-auto-control", "off");
+    setStatus(message);
+  }
+
+  function setHistoryDrawer(open: boolean): void {
+    state.historyDrawerOpen = open;
+    historyDrawer.dataset.state = open ? "open" : "closed";
+    historyDrawer.setAttribute("aria-hidden", String(!open));
+    toggleHistoryButton.setAttribute("aria-expanded", String(open));
+    toggleHistoryButton.setAttribute("aria-label", open ? "Close recent scans" : "Open recent scans");
+  }
+
   function stopCamera(message: string): void {
     state.scanning = false;
     state.scanInFlight = false;
@@ -614,11 +723,13 @@ export function createScannerApp(root: HTMLElement, dependencies: ScannerAppDepe
     }
 
     for (const item of history) {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = item.value === state.selectedValue ? "history-item active" : "history-item";
-      button.dataset.historyValue = item.value;
+      const row = document.createElement("div");
+      row.className = item.value === state.selectedValue ? "history-item active" : "history-item";
 
+      const selectButton = document.createElement("button");
+      selectButton.type = "button";
+      selectButton.className = "history-select";
+      selectButton.dataset.historyValue = item.value;
       const value = document.createElement("span");
       value.className = "history-value";
       value.textContent = item.value;
@@ -627,14 +738,40 @@ export function createScannerApp(root: HTMLElement, dependencies: ScannerAppDepe
       meta.className = "history-meta";
       meta.textContent = `${item.scanCount} scan${item.scanCount === 1 ? "" : "s"} · ${formatTime(item.lastScannedAt)}`;
 
-      button.append(value, meta);
-      button.addEventListener("click", () => {
+      selectButton.append(value, meta);
+      selectButton.addEventListener("click", () => {
         state.selectedValue = item.value;
         renderHistory();
         renderSelectedResult(item.value);
       });
 
-      historyList.append(button);
+      const actions = document.createElement("div");
+      actions.className = "history-actions";
+      actions.append(
+        createHistoryActionButton("copy", item.value, "Copy scan", icon("copy"), () => {
+          void copyValue(item.value);
+        }),
+      );
+
+      if (classifyScanValue(item.value).kind === "url") {
+        actions.append(
+          createHistoryActionButton("open", item.value, "Open scan", icon("open"), () => {
+            const classified = classifyScanValue(item.value);
+            if (classified.kind === "url") {
+              openUrl(classified.href);
+            }
+          }),
+        );
+      }
+
+      actions.append(
+        createHistoryActionButton("delete", item.value, "Delete scan", icon("trash"), () => {
+          deleteHistoryValue(item.value);
+        }),
+      );
+
+      row.append(selectButton, actions);
+      historyList.append(row);
     }
   }
 
@@ -669,13 +806,31 @@ export function createScannerApp(root: HTMLElement, dependencies: ScannerAppDepe
       return;
     }
 
+    await copyValue(selected);
+  }
+
+  async function copyValue(value: string): Promise<void> {
     await clipboard
-      ?.writeText(selected)
+      ?.writeText(value)
       .then(() => setStatus("Copied result."))
       .catch(() => {
         result.focus();
         setStatus("Copy blocked. Select the result text manually.");
       });
+  }
+
+  function deleteHistoryValue(value: string): void {
+    history = deleteScanFromHistory(history, value);
+    safeWriteHistory(storage, history);
+    if (state.selectedValue === value) {
+      state.selectedValue = null;
+    }
+    if (state.latestValue === value) {
+      state.latestValue = null;
+    }
+    renderHistory();
+    renderSelectedResult(null);
+    setStatus("Deleted selected scan.");
   }
 
   function getSelectedValue(): string | null {
@@ -827,7 +982,49 @@ function requireElement<T extends Element>(root: ParentNode, selector: string): 
   return element;
 }
 
+function createHistoryActionButton(
+  action: "copy" | "open" | "delete",
+  value: string,
+  label: string,
+  iconMarkup: string,
+  onClick: () => void,
+): HTMLButtonElement {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = action === "delete" ? "icon-btn danger" : "icon-btn";
+  button.dataset.historyAction = action;
+  button.dataset.historyValue = value;
+  button.setAttribute("aria-label", label);
+  button.title = label;
+  button.innerHTML = iconMarkup;
+  button.addEventListener("click", (event) => {
+    event.stopPropagation();
+    onClick();
+  });
+  return button;
+}
+
+function icon(name: "copy" | "open" | "trash" | "list" | "close"): string {
+  const paths: Record<typeof name, string> = {
+    copy: '<rect x="8" y="8" width="10" height="10" rx="2"/><path d="M6 14H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1"/>',
+    open: '<path d="M7 7h10v10"/><path d="M7 17 17 7"/><path d="M15 3h6v6"/><path d="M5 5h5"/><path d="M5 5v14h14v-5"/>',
+    trash: '<path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 15h10l1-15"/><path d="M10 11v6"/><path d="M14 11v6"/>',
+    list: '<path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/>',
+    close: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  };
+
+  return `<svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${paths[name]}</svg>`;
+}
+
+function clampNumber(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
 function getCanvasContext(canvas: HTMLCanvasElement): CanvasRenderingContext2D | null {
+  if (import.meta.env.MODE === "test") {
+    return null;
+  }
+
   try {
     return canvas.getContext("2d");
   } catch {
