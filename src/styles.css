@@ -1,0 +1,396 @@
+:root {
+  color-scheme: dark;
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #10151f;
+  color: #eef4ff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top left, rgba(34, 197, 94, 0.12), transparent 34rem),
+    linear-gradient(135deg, #10151f 0%, #151b28 52%, #0d1119 100%);
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  border: 0;
+}
+
+.app {
+  min-height: 100vh;
+  padding: 24px;
+}
+
+.shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 18px;
+  width: min(1180px, 100%);
+  margin: 0 auto;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 4px 0 8px;
+}
+
+.brand {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.brand h1 {
+  margin: 0;
+  font-size: 1.55rem;
+  line-height: 1.1;
+  letter-spacing: 0;
+}
+
+.brand span {
+  color: #99a8bd;
+  font-size: 0.9rem;
+}
+
+.status-pill {
+  min-height: 36px;
+  max-width: 50%;
+  padding: 8px 12px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.78);
+  color: #cbd5e1;
+  font-size: 0.9rem;
+  text-align: right;
+}
+
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+}
+
+.scanner-panel,
+.result-panel,
+.history-panel,
+.controls-panel {
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.82);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.28);
+}
+
+.scanner-panel {
+  overflow: hidden;
+}
+
+.camera-stage {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  min-height: 260px;
+  background: #080d14;
+  overflow: hidden;
+}
+
+video,
+.overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+video {
+  object-fit: cover;
+}
+
+.overlay {
+  pointer-events: none;
+}
+
+.guide {
+  position: absolute;
+  inset: 12%;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+.guide::before,
+.guide::after,
+.guide span::before,
+.guide span::after {
+  position: absolute;
+  width: 38px;
+  height: 38px;
+  content: "";
+}
+
+.guide::before {
+  top: -1px;
+  left: -1px;
+  border-top: 3px solid #22c55e;
+  border-left: 3px solid #22c55e;
+}
+
+.guide::after {
+  top: -1px;
+  right: -1px;
+  border-top: 3px solid #22c55e;
+  border-right: 3px solid #22c55e;
+}
+
+.guide span::before {
+  bottom: -1px;
+  left: -1px;
+  border-bottom: 3px solid #22c55e;
+  border-left: 3px solid #22c55e;
+}
+
+.guide span::after {
+  right: -1px;
+  bottom: -1px;
+  border-right: 3px solid #22c55e;
+  border-bottom: 3px solid #22c55e;
+}
+
+.camera-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  color: #99a8bd;
+  text-align: center;
+}
+
+.camera-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px;
+  border-top: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.btn {
+  min-height: 38px;
+  padding: 9px 13px;
+  border-radius: 8px;
+  background: #223047;
+  color: #f8fafc;
+  cursor: pointer;
+}
+
+.btn:hover {
+  background: #2c3d59;
+}
+
+.btn.primary {
+  background: #15803d;
+}
+
+.btn.primary:hover {
+  background: #16a34a;
+}
+
+.btn.warning {
+  background: #92400e;
+}
+
+.btn.warning:hover {
+  background: #b45309;
+}
+
+.btn.ghost {
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  background: transparent;
+}
+
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.capability-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.capability-pills span {
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: rgba(30, 41, 59, 0.95);
+  color: #a7f3d0;
+  font-size: 0.78rem;
+}
+
+.controls-panel {
+  padding: 12px 14px;
+}
+
+.controls-panel summary {
+  cursor: pointer;
+  color: #dbeafe;
+  font-weight: 650;
+}
+
+.controls-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  padding-top: 14px;
+}
+
+.control {
+  display: grid;
+  gap: 6px;
+  color: #cbd5e1;
+  font-size: 0.88rem;
+}
+
+.control input[type="range"] {
+  width: 100%;
+}
+
+.result-panel,
+.history-panel {
+  padding: 16px;
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.section-title h2 {
+  margin: 0;
+  font-size: 1rem;
+  letter-spacing: 0;
+}
+
+.result-value {
+  min-height: 72px;
+  padding: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 8px;
+  background: rgba(2, 6, 23, 0.48);
+  color: #dbeafe;
+  overflow-wrap: anywhere;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.muted {
+  color: #8ea0b8;
+}
+
+.result-meta {
+  margin-top: 8px;
+  color: #99a8bd;
+  font-size: 0.85rem;
+}
+
+.history-list {
+  display: grid;
+  gap: 8px;
+  max-height: 420px;
+  overflow: auto;
+}
+
+.history-item {
+  display: grid;
+  width: 100%;
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.72);
+  color: #e2e8f0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.history-item:hover,
+.history-item.active {
+  border-color: rgba(34, 197, 94, 0.7);
+  background: rgba(21, 128, 61, 0.16);
+}
+
+.history-value {
+  overflow-wrap: anywhere;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.86rem;
+}
+
+.history-meta {
+  color: #8ea0b8;
+  font-size: 0.78rem;
+}
+
+.processing-canvas {
+  display: none;
+}
+
+@media (min-width: 980px) {
+  .workspace {
+    grid-template-columns: minmax(0, 1fr) 340px;
+    align-items: start;
+  }
+
+  .primary-column {
+    display: grid;
+    gap: 16px;
+  }
+
+  .history-panel {
+    position: sticky;
+    top: 20px;
+  }
+}
+
+@media (max-width: 620px) {
+  .app {
+    padding: 14px;
+  }
+
+  .topbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .status-pill {
+    width: 100%;
+    max-width: none;
+    text-align: left;
+  }
+
+  .camera-stage {
+    min-height: 220px;
+  }
+}

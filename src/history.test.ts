@@ -36,7 +36,7 @@ describe("scan history", () => {
   });
 
   it("keeps only the latest 20 unique scans", () => {
-    const history = Array.from({ length: 25 }).reduce(
+    const history = Array.from({ length: 25 }).reduce<ReturnType<typeof addScanToHistory>>(
       (items, _, index) => addScanToHistory(items, `CODE-${index}`, new Date(2026, 5, 13, 10, index)),
       [],
     );
