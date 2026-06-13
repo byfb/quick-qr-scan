@@ -370,6 +370,32 @@ video {
   transition: transform 180ms ease;
 }
 
+.history-edge {
+  position: fixed;
+  top: 0;
+  right: 0;
+  z-index: 24;
+  width: 44px;
+  height: 100dvh;
+  touch-action: none;
+}
+
+.history-edge[data-state="open"] {
+  pointer-events: none;
+}
+
+.history-edge::after {
+  position: absolute;
+  top: 50%;
+  right: 7px;
+  width: 4px;
+  height: 38px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.34);
+  content: "";
+  transform: translateY(-50%);
+}
+
 .history-panel[data-state="closed"] {
   transform: translateX(calc(100% - 18px));
 }

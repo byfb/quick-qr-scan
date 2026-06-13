@@ -151,6 +151,7 @@ export function createScannerApp(root: HTMLElement, dependencies: ScannerAppDepe
             </section>
           </div>
 
+          <div class="history-edge" data-role="history-edge" data-state="closed" aria-hidden="true"></div>
           <aside class="history-panel" data-role="history-drawer" data-state="closed" aria-label="Recent scans" aria-hidden="true">
             <div class="drawer-actions">
               <button class="icon-btn" data-action="close-history" type="button" aria-label="Close recent scans" title="Close">
@@ -208,6 +209,7 @@ export function createScannerApp(root: HTMLElement, dependencies: ScannerAppDepe
   const toggleHistoryButton = requireElement<HTMLButtonElement>(root, "[data-action='toggle-history']");
   const closeHistoryButton = requireElement<HTMLButtonElement>(root, "[data-action='close-history']");
   const historyDrawer = requireElement<HTMLElement>(root, "[data-role='history-drawer']");
+  const historyEdge = requireElement<HTMLElement>(root, "[data-role='history-edge']");
   const zoomControl = requireElement<HTMLElement>(root, "[data-role='zoom-control']");
   const zoomInput = requireElement<HTMLInputElement>(root, "[data-action='zoom']");
   const torchControl = requireElement<HTMLElement>(root, "[data-role='torch-control']");
@@ -243,6 +245,40 @@ export function createScannerApp(root: HTMLElement, dependencies: ScannerAppDepe
     setHistoryDrawer(false);
   });
 
+  historyEdge.addEventListener("pointerdown", (event) => {
+    handleSwipeStart(event.clientX);
+    historyEdge.setPointerCapture?.(event.pointerId);
+  });
+
+  historyEdge.addEventListener("pointermove", (event) => {
+    handleSwipeMove(event.clientX, true);
+  });
+
+  historyEdge.addEventListener("pointerup", (event) => {
+    handleSwipeEnd(event.clientX);
+    historyEdge.releasePointerCapture?.(event.pointerId);
+  });
+
+  historyEdge.addEventListener(
+    "touchstart",
+    (event) => {
+      handleSwipeStart(event.touches[0]?.clientX ?? null);
+    },
+    { passive: true },
+  );
+
+  historyEdge.addEventListener(
+    "touchmove",
+    (event) => {
+      handleSwipeMove(event.touches[0]?.clientX ?? null, true);
+    },
+    { passive: true },
+  );
+
+  historyEdge.addEventListener("touchend", (event) => {
+    handleSwipeEnd(event.changedTouches[0]?.clientX ?? null);
+  });
+
   clearButton.addEventListener("click", () => {
     clearStoredHistory(storage);
     history = [];
@@ -256,22 +292,11 @@ export function createScannerApp(root: HTMLElement, dependencies: ScannerAppDepe
   });
 
   root.addEventListener("pointerdown", (event) => {
-    state.swipeStartX = event.clientX;
+    handleSwipeStart(event.clientX);
   });
 
   root.addEventListener("pointerup", (event) => {
-    if (state.swipeStartX === null) {
-      return;
-    }
-
-    const deltaX = event.clientX - state.swipeStartX;
-    const viewportWidth = globalThis.innerWidth || document.documentElement.clientWidth;
-    if (!state.historyDrawerOpen && state.swipeStartX > viewportWidth - 28 && deltaX < -42) {
-      setHistoryDrawer(true);
-    } else if (state.historyDrawerOpen && deltaX > 42) {
-      setHistoryDrawer(false);
-    }
-    state.swipeStartX = null;
+    handleSwipeEnd(event.clientX);
   });
 
   root.addEventListener("click", (event) => {
@@ -696,9 +721,43 @@ export function createScannerApp(root: HTMLElement, dependencies: ScannerAppDepe
   function setHistoryDrawer(open: boolean): void {
     state.historyDrawerOpen = open;
     historyDrawer.dataset.state = open ? "open" : "closed";
+    historyEdge.dataset.state = open ? "open" : "closed";
     historyDrawer.setAttribute("aria-hidden", String(!open));
     toggleHistoryButton.setAttribute("aria-expanded", String(open));
     toggleHistoryButton.setAttribute("aria-label", open ? "Close recent scans" : "Open recent scans");
+  }
+
+  function handleSwipeStart(clientX: number | null): void {
+    state.swipeStartX = clientX;
+  }
+
+  function handleSwipeMove(clientX: number | null, forceFromEdge = false): void {
+    if (state.swipeStartX === null || clientX === null) {
+      return;
+    }
+
+    const deltaX = clientX - state.swipeStartX;
+    const viewportWidth = globalThis.innerWidth || document.documentElement.clientWidth;
+    if (!state.historyDrawerOpen && (forceFromEdge || state.swipeStartX > viewportWidth - 44) && deltaX < -30) {
+      setHistoryDrawer(true);
+      state.swipeStartX = null;
+    }
+  }
+
+  function handleSwipeEnd(clientX: number | null): void {
+    if (state.swipeStartX === null || clientX === null) {
+      state.swipeStartX = null;
+      return;
+    }
+
+    const deltaX = clientX - state.swipeStartX;
+    const viewportWidth = globalThis.innerWidth || document.documentElement.clientWidth;
+    if (!state.historyDrawerOpen && state.swipeStartX > viewportWidth - 44 && deltaX < -30) {
+      setHistoryDrawer(true);
+    } else if (state.historyDrawerOpen && deltaX > 42) {
+      setHistoryDrawer(false);
+    }
+    state.swipeStartX = null;
   }
 
   function stopCamera(message: string): void {

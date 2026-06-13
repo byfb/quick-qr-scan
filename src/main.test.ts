@@ -75,6 +75,17 @@ describe("Quick QR Scan app shell", () => {
     expect(root.querySelector<HTMLElement>("[data-role='history-drawer']")?.dataset.state).toBe("open");
   });
 
+  it("opens the history drawer by swiping left from the right edge", () => {
+    const root = document.createElement("div");
+    createScannerApp(root, { storage: createMemoryStore() });
+    const edge = root.querySelector<HTMLElement>("[data-role='history-edge']");
+
+    edge?.dispatchEvent(new MouseEvent("pointerdown", { clientX: 390, bubbles: true }));
+    edge?.dispatchEvent(new MouseEvent("pointermove", { clientX: 340, bubbles: true }));
+
+    expect(root.querySelector<HTMLElement>("[data-role='history-drawer']")?.dataset.state).toBe("open");
+  });
+
   it("closes the history drawer when clicking outside it", () => {
     const root = document.createElement("div");
     const store = createMemoryStore();
