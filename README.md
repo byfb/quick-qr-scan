@@ -28,4 +28,4 @@ pages_build_output_dir = "dist"
 
 - Scan history is local-only via browser storage.
 - Camera zoom, torch, focus, exposure, and white balance controls are best-effort because browser/device support varies.
-- The app never auto-opens scanned URLs. Use the `Open` button for `http:` and `https:` results.
+- Scanned `http:` and `https:` URLs prompt before opening unless `Auto-open links` is enabled in camera controls.

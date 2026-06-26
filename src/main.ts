@@ -21,6 +21,11 @@ import { enhanceImageData } from "./image";
 import { getNextAutoZoom, shouldScanFrame } from "./scanner";
 import { classifyScanValue } from "./url";
 
+interface DetectedQr {
+  value: string;
+  points: Array<{ x: number; y: number }>;
+}
+
 interface ScannerAppDependencies {
   storage?: HistoryStore;
   mediaDevices?: MediaDevices;
@@ -29,11 +34,7 @@ interface ScannerAppDependencies {
   now?: () => Date;
   requestFrame?: (callback: FrameRequestCallback) => number;
   cancelFrame?: (handle: number) => void;
-}
-
-interface DetectedQr {
-  value: string;
-  points: Array<{ x: number; y: number }>;
+  testDetections?: DetectedQr[];
 }
 
 interface BarcodeDetectorResult {
@@ -57,6 +58,7 @@ interface ScannerState {
   capabilities: NormalizedCameraCapabilities;
   scanning: boolean;
   scanInFlight: boolean;
+  cameraStarting: boolean;
   currentZoom: number;
   torch: boolean;
   brightness: number;
@@ -67,11 +69,13 @@ interface ScannerState {
   latestValue: string | null;
   rafId: number | null;
   autoControlEnabled: boolean;
+  autoOpenLinks: boolean;
   historyDrawerOpen: boolean;
   swipeStartX: number | null;
 }
 
 const emptyCapabilities = normalizeCameraCapabilities({});
+const AUTO_OPEN_LINKS_KEY = "quick-qr-scan:auto-open-links:v1";
 
 export function createScannerApp(root: HTMLElement, dependencies: ScannerAppDependencies = {}): void {
   const storage = dependencies.storage ?? createBrowserStore();
@@ -81,6 +85,8 @@ export function createScannerApp(root: HTMLElement, dependencies: ScannerAppDepe
   const now = dependencies.now ?? (() => new Date());
   const requestFrame = dependencies.requestFrame ?? globalThis.requestAnimationFrame.bind(globalThis);
   const cancelFrame = dependencies.cancelFrame ?? globalThis.cancelAnimationFrame.bind(globalThis);
+  const testDetections = [...(dependencies.testDetections ?? [])];
+  const initialAutoOpenLinks = readStoredBoolean(storage, AUTO_OPEN_LINKS_KEY);
 
   root.innerHTML = `
     <main class="app" data-text-select="off">
@@ -88,16 +94,14 @@ export function createScannerApp(root: HTMLElement, dependencies: ScannerAppDepe
         <section class="workspace" aria-label="Scanner workspace">
           <div class="primary-column">
             <section class="scanner-panel" aria-label="Camera scanner">
-              <div class="camera-stage" data-role="camera-stage">
+              <div class="camera-stage" data-role="camera-stage" role="button" tabindex="0" aria-label="Start scanner">
                 <video data-role="video" playsinline autoplay muted></video>
                 <canvas class="overlay" data-role="overlay"></canvas>
                 <div class="guide" aria-hidden="true"><span></span></div>
-                <div class="camera-empty" data-role="camera-empty">Camera idle. Start scanner when ready.</div>
+                <div class="camera-empty" data-role="camera-empty">Tap camera view to start.</div>
               </div>
               <div class="camera-toolbar">
                 <div class="button-row">
-                  <button class="btn primary" data-action="start" type="button">Start Scanner</button>
-                  <button class="btn" data-action="scan-again" type="button" hidden>Scan Again</button>
                   <button class="btn ghost" data-action="stop" type="button" hidden>Stop Camera</button>
                 </div>
                 <div class="status-pill" data-role="status">Ready</div>
@@ -126,6 +130,13 @@ export function createScannerApp(root: HTMLElement, dependencies: ScannerAppDepe
                 <label class="control">
                   Decode contrast
                   <input data-action="contrast" type="range" min="0.8" max="1.8" step="0.05" value="1" />
+                </label>
+                <label class="control toggle-control">
+                  <span>Auto-open links</span>
+                  <span class="switch-row">
+                    <input data-action="auto-open-links" type="checkbox" />
+                    <span>Open http/https scan results automatically after each successful scan.</span>
+                  </span>
                 </label>
                 <div class="control">
                   Reset
@@ -165,6 +176,7 @@ export function createScannerApp(root: HTMLElement, dependencies: ScannerAppDepe
           </aside>
         </section>
       </div>
+      <div data-role="modal-root"></div>
       <canvas class="processing-canvas" data-role="processing"></canvas>
     </main>
   `;
@@ -175,6 +187,7 @@ export function createScannerApp(root: HTMLElement, dependencies: ScannerAppDepe
     capabilities: emptyCapabilities,
     scanning: false,
     scanInFlight: false,
+    cameraStarting: false,
     currentZoom: 1,
     torch: false,
     brightness: 0,
@@ -185,6 +198,7 @@ export function createScannerApp(root: HTMLElement, dependencies: ScannerAppDepe
     latestValue: null,
     rafId: null,
     autoControlEnabled: true,
+    autoOpenLinks: initialAutoOpenLinks,
     historyDrawerOpen: false,
     swipeStartX: null,
   };
@@ -197,10 +211,9 @@ export function createScannerApp(root: HTMLElement, dependencies: ScannerAppDepe
   const cameraEmpty = requireElement<HTMLElement>(root, "[data-role='camera-empty']");
   const result = requireElement<HTMLElement>(root, "[data-role='result']");
   const resultMeta = requireElement<HTMLElement>(root, "[data-role='result-meta']");
+  const modalRoot = requireElement<HTMLElement>(root, "[data-role='modal-root']");
   const historyList = requireElement<HTMLElement>(root, "[data-role='history']");
   const capabilityPills = requireElement<HTMLElement>(root, "[data-role='capabilities']");
-  const startButton = requireElement<HTMLButtonElement>(root, "[data-action='start']");
-  const scanAgainButton = requireElement<HTMLButtonElement>(root, "[data-action='scan-again']");
   const stopButton = requireElement<HTMLButtonElement>(root, "[data-action='stop']");
   const copyButton = requireElement<HTMLButtonElement>(root, "[data-action='copy-selected']");
   const openButton = requireElement<HTMLButtonElement>(root, "[data-action='open-selected']");
@@ -216,6 +229,7 @@ export function createScannerApp(root: HTMLElement, dependencies: ScannerAppDepe
   const torchButton = requireElement<HTMLButtonElement>(root, "[data-action='torch']");
   const brightnessInput = requireElement<HTMLInputElement>(root, "[data-action='brightness']");
   const contrastInput = requireElement<HTMLInputElement>(root, "[data-action='contrast']");
+  const autoOpenLinksInput = requireElement<HTMLInputElement>(root, "[data-action='auto-open-links']");
   const resetCameraButton = requireElement<HTMLButtonElement>(root, "[data-action='reset-camera']");
   const controlsPanel = requireElement<HTMLDetailsElement>(root, "[data-role='camera-controls']");
 
@@ -224,14 +238,8 @@ export function createScannerApp(root: HTMLElement, dependencies: ScannerAppDepe
 
   renderHistory();
   renderSelectedResult(null);
-
-  startButton.addEventListener("click", () => {
-    void startCamera();
-  });
-
-  scanAgainButton.addEventListener("click", () => {
-    resumeScanning();
-  });
+  autoOpenLinksInput.checked = state.autoOpenLinks;
+  renderCameraActionState();
 
   stopButton.addEventListener("click", () => {
     stopCamera("Camera stopped.");
@@ -287,8 +295,23 @@ export function createScannerApp(root: HTMLElement, dependencies: ScannerAppDepe
     renderSelectedResult(state.latestValue);
   });
 
+  cameraStage.addEventListener("click", () => {
+    void activateCameraStage();
+  });
+
+  cameraStage.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") {
+      return;
+    }
+
+    event.preventDefault();
+    void activateCameraStage();
+  });
+
   cameraStage.addEventListener("pointerup", (event) => {
-    void handleCameraStagePress(event);
+    if (state.scanning) {
+      void handleCameraStagePress(event);
+    }
   });
 
   root.addEventListener("pointerdown", (event) => {
@@ -365,6 +388,15 @@ export function createScannerApp(root: HTMLElement, dependencies: ScannerAppDepe
     state.contrast = Number(contrastInput.value);
   });
 
+  autoOpenLinksInput.addEventListener("click", syncAutoOpenLinksSetting);
+  autoOpenLinksInput.addEventListener("change", syncAutoOpenLinksSetting);
+
+  function syncAutoOpenLinksSetting(): void {
+    state.autoOpenLinks = autoOpenLinksInput.checked;
+    safeWriteBoolean(storage, AUTO_OPEN_LINKS_KEY, state.autoOpenLinks);
+    setStatus(state.autoOpenLinks ? "Auto-open links enabled." : "Auto-open links disabled.");
+  }
+
   resetCameraButton.addEventListener("click", () => {
     disableAutoControl("Manual camera control active.");
     state.brightness = 0;
@@ -383,13 +415,18 @@ export function createScannerApp(root: HTMLElement, dependencies: ScannerAppDepe
   });
 
   async function startCamera(): Promise<void> {
+    if (state.cameraStarting || state.stream) {
+      return;
+    }
+
     if (!mediaDevices?.getUserMedia) {
       setStatus("Camera API unavailable in this browser or context.");
       cameraEmpty.textContent = "Camera API unavailable. History remains usable.";
       return;
     }
 
-    startButton.disabled = true;
+    state.cameraStarting = true;
+    renderCameraActionState();
     setStatus("Requesting camera permission...");
 
     try {
@@ -410,8 +447,20 @@ export function createScannerApp(root: HTMLElement, dependencies: ScannerAppDepe
         const name = error instanceof DOMException ? error.name : "CameraError";
         setStatus(`${name}: camera permission denied or no camera found.`);
         cameraEmpty.textContent = "Camera unavailable. Check browser permission and HTTPS.";
-        startButton.disabled = false;
+        state.cameraStarting = false;
+        renderCameraActionState();
       }
+    }
+  }
+
+  async function activateCameraStage(): Promise<void> {
+    if (!state.stream) {
+      await startCamera();
+      return;
+    }
+
+    if (!state.scanning) {
+      resumeScanning();
     }
   }
 
@@ -420,7 +469,6 @@ export function createScannerApp(root: HTMLElement, dependencies: ScannerAppDepe
     state.track = stream.getVideoTracks()[0] ?? null;
     if (!state.track) {
       stopCamera("No video track found.");
-      startButton.disabled = false;
       return;
     }
 
@@ -436,13 +484,12 @@ export function createScannerApp(root: HTMLElement, dependencies: ScannerAppDepe
     resizeCanvases();
 
     cameraEmpty.hidden = true;
-    startButton.hidden = true;
-    startButton.disabled = false;
-    scanAgainButton.hidden = true;
+    state.cameraStarting = false;
+    state.scanning = true;
     stopButton.hidden = false;
+    renderCameraActionState();
     renderCapabilities();
     setStatus("Scanning. Point camera at QR code.");
-    state.scanning = true;
     state.lastScanAt = 0;
     state.lastZoomAttemptAt = performance.now();
     scheduleLoop();
@@ -473,7 +520,7 @@ export function createScannerApp(root: HTMLElement, dependencies: ScannerAppDepe
   }
 
   async function runScanTick(timestamp: number): Promise<void> {
-    if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+    if (testDetections.length === 0 && video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
       return;
     }
 
@@ -488,6 +535,11 @@ export function createScannerApp(root: HTMLElement, dependencies: ScannerAppDepe
   }
 
   async function detectQr(): Promise<DetectedQr | null> {
+    const testDetection = testDetections.shift();
+    if (testDetection) {
+      return testDetection;
+    }
+
     const processingCtx = getCanvasContext(processingCanvas);
     if (!processingCtx) {
       setStatus("Canvas processing unavailable in this browser.");
@@ -593,8 +645,9 @@ export function createScannerApp(root: HTMLElement, dependencies: ScannerAppDepe
     safeWriteHistory(storage, history);
     renderHistory();
     renderSelectedResult(detected.value);
-    scanAgainButton.hidden = false;
-    setStatus("Scan complete. Review result or scan again.");
+    renderCameraActionState();
+    handleDetectedLink(detected.value);
+    setStatus("Scan complete. Tap camera view to scan again.");
   }
 
   function resumeScanning(): void {
@@ -607,7 +660,8 @@ export function createScannerApp(root: HTMLElement, dependencies: ScannerAppDepe
     state.scanning = true;
     state.lastScanAt = 0;
     state.lastZoomAttemptAt = performance.now();
-    scanAgainButton.hidden = true;
+    closeLinkPrompt();
+    renderCameraActionState();
     setStatus("Scanning. Point camera at QR code.");
     if (state.autoControlEnabled) {
       void applyZoom(state.capabilities.zoom.min);
@@ -678,16 +732,8 @@ export function createScannerApp(root: HTMLElement, dependencies: ScannerAppDepe
   }
 
   async function handleCameraStagePress(event: PointerEvent): Promise<void> {
-    if (!state.stream) {
-      return;
-    }
-
     disableAutoControl("Manual focus active. Tap again anytime to rescan.");
     await applyFocusAtPoint(event.clientX, event.clientY);
-
-    if (!state.scanning) {
-      resumeScanning();
-    }
   }
 
   async function applyFocusAtPoint(clientX: number, clientY: number): Promise<void> {
@@ -763,6 +809,7 @@ export function createScannerApp(root: HTMLElement, dependencies: ScannerAppDepe
   function stopCamera(message: string): void {
     state.scanning = false;
     state.scanInFlight = false;
+    state.cameraStarting = false;
     if (state.rafId !== null) {
       cancelFrame(state.rafId);
       state.rafId = null;
@@ -771,13 +818,12 @@ export function createScannerApp(root: HTMLElement, dependencies: ScannerAppDepe
     state.stream = null;
     state.track = null;
     video.srcObject = null;
-    startButton.hidden = false;
-    startButton.disabled = false;
     stopButton.hidden = true;
-    scanAgainButton.hidden = true;
     cameraEmpty.hidden = false;
-    cameraEmpty.textContent = "Camera idle. Start scanner when ready.";
+    cameraEmpty.textContent = "Tap camera view to start.";
     state.capabilities = emptyCapabilities;
+    closeLinkPrompt();
+    renderCameraActionState();
     renderCapabilities();
     clearOverlay();
     setStatus(message);
@@ -870,6 +916,76 @@ export function createScannerApp(root: HTMLElement, dependencies: ScannerAppDepe
     } else {
       resultMeta.textContent = "Text result";
     }
+  }
+
+  function handleDetectedLink(value: string): void {
+    closeLinkPrompt();
+    const classified = classifyScanValue(value);
+    if (classified.kind !== "url") {
+      return;
+    }
+
+    if (state.autoOpenLinks) {
+      openUrl(classified.href);
+      return;
+    }
+
+    showLinkPrompt(classified.href, classified.host);
+  }
+
+  function showLinkPrompt(href: string, host: string): void {
+    const backdrop = document.createElement("div");
+    backdrop.className = "modal-backdrop";
+    backdrop.dataset.role = "link-prompt";
+    backdrop.setAttribute("role", "dialog");
+    backdrop.setAttribute("aria-modal", "true");
+    backdrop.setAttribute("aria-labelledby", "link-prompt-title");
+
+    const panel = document.createElement("div");
+    panel.className = "modal-panel";
+
+    const title = document.createElement("h2");
+    title.id = "link-prompt-title";
+    title.textContent = "Open scanned link?";
+
+    const body = document.createElement("p");
+    body.textContent = host;
+
+    const detail = document.createElement("div");
+    detail.className = "modal-url";
+    detail.textContent = href;
+
+    const actions = document.createElement("div");
+    actions.className = "modal-actions";
+
+    const keepButton = document.createElement("button");
+    keepButton.type = "button";
+    keepButton.className = "btn ghost";
+    keepButton.dataset.action = "dismiss-link-prompt";
+    keepButton.textContent = "Keep result";
+    keepButton.addEventListener("click", () => {
+      closeLinkPrompt();
+    });
+
+    const openButton = document.createElement("button");
+    openButton.type = "button";
+    openButton.className = "btn primary";
+    openButton.dataset.action = "confirm-open-link";
+    openButton.textContent = "Open link";
+    openButton.addEventListener("click", () => {
+      closeLinkPrompt();
+      openUrl(href);
+    });
+
+    actions.append(keepButton, openButton);
+    panel.append(title, body, detail, actions);
+    backdrop.append(panel);
+    modalRoot.replaceChildren(backdrop);
+    openButton.focus();
+  }
+
+  function closeLinkPrompt(): void {
+    modalRoot.replaceChildren();
   }
 
   async function copySelectedValue(): Promise<void> {
@@ -986,6 +1102,33 @@ export function createScannerApp(root: HTMLElement, dependencies: ScannerAppDepe
     overlayCtx?.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
   }
 
+  function renderCameraActionState(): void {
+    const cameraState = state.cameraStarting ? "starting" : state.scanning ? "scanning" : state.stream ? "complete" : "idle";
+    cameraStage.dataset.state = cameraState;
+
+    if (state.cameraStarting) {
+      cameraStage.setAttribute("aria-label", "Starting scanner");
+      cameraStage.setAttribute("aria-disabled", "true");
+      cameraEmpty.textContent = "Starting camera...";
+      return;
+    }
+
+    cameraStage.removeAttribute("aria-disabled");
+
+    if (!state.stream) {
+      cameraStage.setAttribute("aria-label", "Start scanner");
+      cameraEmpty.textContent = "Tap camera view to start.";
+      return;
+    }
+
+    if (state.scanning) {
+      cameraStage.setAttribute("aria-label", "Scanner active");
+      return;
+    }
+
+    cameraStage.setAttribute("aria-label", "Scan again");
+  }
+
   function setStatus(message: string): void {
     status.textContent = message;
   }
@@ -1004,6 +1147,14 @@ export function createScannerApp(root: HTMLElement, dependencies: ScannerAppDepe
       writeStoredHistory(store, items);
     } catch {
       setStatus("Storage unavailable. Result kept for this session only.");
+    }
+  }
+
+  function safeWriteBoolean(store: HistoryStore, key: string, value: boolean): void {
+    try {
+      store.setItem(key, JSON.stringify(value));
+    } catch {
+      setStatus("Storage unavailable. Setting kept for this session only.");
     }
   }
 
@@ -1044,6 +1195,14 @@ function createBrowserStore(): HistoryStore {
   }
 
   return createMemoryStore();
+}
+
+function readStoredBoolean(store: HistoryStore, key: string): boolean {
+  try {
+    return store.getItem(key) === "true";
+  } catch {
+    return false;
+  }
 }
 
 function requireElement<T extends Element>(root: ParentNode, selector: string): T {

@@ -7,6 +7,45 @@ describe("Quick QR Scan app shell", () => {
     vi.restoreAllMocks();
   });
 
+  function createReadyCamera() {
+    vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+    const track = {
+      applyConstraints: vi.fn().mockResolvedValue(undefined),
+      getCapabilities: () => ({}),
+      stop: vi.fn(),
+    };
+    const stream = {
+      getVideoTracks: () => [track],
+      getTracks: () => [track],
+    };
+
+    return {
+      mediaDevices: {
+        getUserMedia: vi.fn().mockResolvedValue(stream),
+      } as unknown as MediaDevices,
+      track,
+    };
+  }
+
+  function createFrameRunner(maxFrames = 1): (callback: FrameRequestCallback) => number {
+    let frameCount = 0;
+    return (callback: FrameRequestCallback) => {
+      if (frameCount < maxFrames) {
+        frameCount += 1;
+        queueMicrotask(() => callback(100 * frameCount));
+      }
+      return frameCount;
+    };
+  }
+
+  async function flushAsync(): Promise<void> {
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await Promise.resolve();
+  }
+
   it("renders stored history on startup", () => {
     const root = document.createElement("div");
     const store = createMemoryStore();
@@ -22,12 +61,105 @@ describe("Quick QR Scan app shell", () => {
     const root = document.createElement("div");
     createScannerApp(root, { mediaDevices: undefined, storage: createMemoryStore() });
 
-    root.querySelector<HTMLButtonElement>('[data-action="start"]')?.click();
+    root.querySelector<HTMLElement>("[data-role='camera-stage']")?.click();
     await Promise.resolve();
 
     expect(root.querySelector<HTMLElement>("[data-role='status']")?.textContent).toContain(
       "Camera API unavailable",
     );
+  });
+
+  it("starts the camera from the main camera view", async () => {
+    vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+    const track = {
+      applyConstraints: vi.fn().mockResolvedValue(undefined),
+      getCapabilities: () => ({}),
+      stop: vi.fn(),
+    };
+    const stream = {
+      getVideoTracks: () => [track],
+      getTracks: () => [track],
+    };
+    const mediaDevices = {
+      getUserMedia: vi.fn().mockResolvedValue(stream),
+    };
+    const root = document.createElement("div");
+
+    createScannerApp(root, {
+      mediaDevices: mediaDevices as unknown as MediaDevices,
+      storage: createMemoryStore(),
+      requestFrame: () => 0,
+      cancelFrame: vi.fn(),
+    });
+
+    expect(root.querySelector<HTMLButtonElement>('[data-action="start"]')).toBeNull();
+
+    root.querySelector<HTMLElement>("[data-role='camera-stage']")?.click();
+    await flushAsync();
+
+    expect(mediaDevices.getUserMedia).toHaveBeenCalledWith({
+      audio: false,
+      video: {
+        facingMode: { ideal: "environment" },
+        width: { ideal: 1920 },
+        height: { ideal: 1080 },
+      },
+    });
+    expect(root.querySelector<HTMLElement>("[data-role='status']")?.textContent).toContain("Scanning");
+  });
+
+  it("starts the camera from the main camera view with keyboard activation", async () => {
+    const { mediaDevices } = createReadyCamera();
+    const root = document.createElement("div");
+
+    createScannerApp(root, {
+      mediaDevices,
+      storage: createMemoryStore(),
+      requestFrame: () => 0,
+      cancelFrame: vi.fn(),
+    });
+
+    root
+      .querySelector<HTMLElement>("[data-role='camera-stage']")
+      ?.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    await flushAsync();
+
+    expect(mediaDevices.getUserMedia).toHaveBeenCalled();
+    expect(root.querySelector<HTMLElement>("[data-role='camera-stage']")?.getAttribute("aria-label")).toBe(
+      "Scanner active",
+    );
+  });
+
+  it("resumes scanning from the main camera view after a successful scan", async () => {
+    const { mediaDevices } = createReadyCamera();
+    const root = document.createElement("div");
+
+    createScannerApp(root, {
+      mediaDevices,
+      storage: createMemoryStore(),
+      requestFrame: createFrameRunner(),
+      cancelFrame: vi.fn(),
+      testDetections: [
+        {
+          value: "ASSET-42",
+          points: [
+            { x: 1, y: 1 },
+            { x: 2, y: 1 },
+            { x: 2, y: 2 },
+            { x: 1, y: 2 },
+          ],
+        },
+      ],
+    });
+
+    root.querySelector<HTMLElement>("[data-role='camera-stage']")?.click();
+    await flushAsync();
+
+    expect(root.querySelector<HTMLElement>("[data-role='status']")?.textContent).toContain("Tap camera view");
+
+    root.querySelector<HTMLElement>("[data-role='camera-stage']")?.click();
+
+    expect(root.querySelector<HTMLElement>("[data-role='status']")?.textContent).toContain("Scanning");
   });
 
   it("opens only safe URL results from history", () => {
@@ -167,9 +299,8 @@ describe("Quick QR Scan app shell", () => {
       toJSON: () => ({}),
     });
 
-    root.querySelector<HTMLButtonElement>('[data-action="start"]')?.click();
-    await Promise.resolve();
-    await Promise.resolve();
+    root.querySelector<HTMLElement>("[data-role='camera-stage']")?.click();
+    await flushAsync();
     stage?.dispatchEvent(new MouseEvent("pointerup", { clientX: 100, clientY: 150, bubbles: true }));
     await Promise.resolve();
 
@@ -188,5 +319,93 @@ describe("Quick QR Scan app shell", () => {
     controls!.dispatchEvent(new Event("toggle"));
 
     expect(root.querySelector<HTMLElement>("[data-role='status']")?.textContent).toContain("Manual");
+  });
+
+  it("defaults auto-open links off and persists changes", () => {
+    const store = createMemoryStore();
+    const root = document.createElement("div");
+
+    createScannerApp(root, { storage: store });
+
+    const toggle = root.querySelector<HTMLInputElement>('[data-action="auto-open-links"]');
+    expect(toggle?.checked).toBe(false);
+
+    toggle!.checked = true;
+    toggle?.dispatchEvent(new Event("change"));
+
+    const nextRoot = document.createElement("div");
+    createScannerApp(nextRoot, { storage: store });
+
+    expect(nextRoot.querySelector<HTMLInputElement>('[data-action="auto-open-links"]')?.checked).toBe(true);
+  });
+
+  it("prompts before opening a scanned URL when auto-open links is off", async () => {
+    const root = document.createElement("div");
+    const openUrl = vi.fn();
+    const { mediaDevices } = createReadyCamera();
+
+    createScannerApp(root, {
+      storage: createMemoryStore(),
+      mediaDevices,
+      openUrl,
+      requestFrame: createFrameRunner(),
+      cancelFrame: vi.fn(),
+      testDetections: [
+        {
+          value: "https://example.com/check",
+          points: [
+            { x: 1, y: 1 },
+            { x: 2, y: 1 },
+            { x: 2, y: 2 },
+            { x: 1, y: 2 },
+          ],
+        },
+      ],
+    });
+
+    root.querySelector<HTMLElement>("[data-role='camera-stage']")?.click();
+    await flushAsync();
+
+    expect(root.querySelector<HTMLElement>("[data-role='link-prompt']")).not.toBeNull();
+    expect(root.querySelector<HTMLElement>("[data-role='link-prompt']")?.textContent).toContain("example.com");
+    expect(openUrl).not.toHaveBeenCalled();
+
+    root.querySelector<HTMLButtonElement>('[data-action="confirm-open-link"]')?.click();
+
+    expect(openUrl).toHaveBeenCalledWith("https://example.com/check");
+  });
+
+  it("auto-opens scanned URLs without a prompt when auto-open links is on", async () => {
+    const store = createMemoryStore({
+      "quick-qr-scan:auto-open-links:v1": "true",
+    });
+    const root = document.createElement("div");
+    const openUrl = vi.fn();
+    const { mediaDevices } = createReadyCamera();
+
+    createScannerApp(root, {
+      storage: store,
+      mediaDevices,
+      openUrl,
+      requestFrame: createFrameRunner(),
+      cancelFrame: vi.fn(),
+      testDetections: [
+        {
+          value: "https://example.com/check",
+          points: [
+            { x: 1, y: 1 },
+            { x: 2, y: 1 },
+            { x: 2, y: 2 },
+            { x: 1, y: 2 },
+          ],
+        },
+      ],
+    });
+
+    root.querySelector<HTMLElement>("[data-role='camera-stage']")?.click();
+    await flushAsync();
+
+    expect(openUrl).toHaveBeenCalledWith("https://example.com/check");
+    expect(root.querySelector<HTMLElement>("[data-role='link-prompt']")).toBeNull();
   });
 });
