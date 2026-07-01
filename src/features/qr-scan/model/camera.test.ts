@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildSupportedConstraints, clampZoom, normalizeCameraCapabilities } from "./camera";
+import { buildSupportedConstraints, clampZoom, normalizeCameraCapabilities } from "..";
 
 describe("camera capabilities", () => {
   it("normalizes zoom, torch, and continuous modes", () => {

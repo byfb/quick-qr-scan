@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { adjustPixels } from "./image";
+import { adjustPixels } from "..";
 
 describe("adjustPixels", () => {
   it("applies brightness and contrast while preserving alpha", () => {

@@ -6,7 +6,7 @@ import {
   deleteScanFromHistory,
   readStoredHistory,
   saveScanToStore,
-} from "./history";
+} from "..";
 
 describe("scan history", () => {
   it("adds new scans newest first", () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifyScanValue } from "./url";
+import { classifyScanValue } from "..";
 
 describe("classifyScanValue", () => {
   it("marks http and https URLs safe to open", () => {

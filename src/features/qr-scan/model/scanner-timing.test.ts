@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SCAN_INTERVAL_MS, getNextAutoZoom, shouldScanFrame } from "./scanner";
+import { SCAN_INTERVAL_MS, getNextAutoZoom, shouldScanFrame } from "..";
 
 describe("scanner timing", () => {
   it("throttles scan work to about 12 fps", () => {

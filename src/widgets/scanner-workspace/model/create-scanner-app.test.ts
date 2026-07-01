@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createMemoryStore, saveScanToStore } from "./history";
-import { createScannerApp } from "./main";
+import { createMemoryStore, saveScanToStore } from "../../../entities/scan-history";
+import { createScannerApp, scannerWorkspaceMarkup } from "..";
 
 describe("Quick QR Scan app shell", () => {
   afterEach(() => {
@@ -38,6 +38,12 @@ describe("Quick QR Scan app shell", () => {
     };
   }
 
+  function createRoot(): HTMLDivElement {
+    const root = document.createElement("div");
+    root.innerHTML = scannerWorkspaceMarkup;
+    return root;
+  }
+
   async function flushAsync(): Promise<void> {
     await Promise.resolve();
     await Promise.resolve();
@@ -47,7 +53,7 @@ describe("Quick QR Scan app shell", () => {
   }
 
   it("renders stored history on startup", () => {
-    const root = document.createElement("div");
+    const root = createRoot();
     const store = createMemoryStore();
     saveScanToStore(store, "ASSET-42", new Date("2026-06-13T10:00:00Z"));
 
@@ -58,7 +64,7 @@ describe("Quick QR Scan app shell", () => {
   });
 
   it("shows a camera unavailable message when media devices are missing", async () => {
-    const root = document.createElement("div");
+    const root = createRoot();
     createScannerApp(root, { mediaDevices: undefined, storage: createMemoryStore() });
 
     root.querySelector<HTMLElement>("[data-role='camera-stage']")?.click();
@@ -83,7 +89,7 @@ describe("Quick QR Scan app shell", () => {
     const mediaDevices = {
       getUserMedia: vi.fn().mockResolvedValue(stream),
     };
-    const root = document.createElement("div");
+    const root = createRoot();
 
     createScannerApp(root, {
       mediaDevices: mediaDevices as unknown as MediaDevices,
@@ -110,7 +116,7 @@ describe("Quick QR Scan app shell", () => {
 
   it("starts the camera from the main camera view with keyboard activation", async () => {
     const { mediaDevices } = createReadyCamera();
-    const root = document.createElement("div");
+    const root = createRoot();
 
     createScannerApp(root, {
       mediaDevices,
@@ -132,7 +138,7 @@ describe("Quick QR Scan app shell", () => {
 
   it("resumes scanning from the main camera view after a successful scan", async () => {
     const { mediaDevices } = createReadyCamera();
-    const root = document.createElement("div");
+    const root = createRoot();
 
     createScannerApp(root, {
       mediaDevices,
@@ -163,7 +169,7 @@ describe("Quick QR Scan app shell", () => {
   });
 
   it("opens only safe URL results from history", () => {
-    const root = document.createElement("div");
+    const root = createRoot();
     const store = createMemoryStore();
     const openUrl = vi.fn();
     saveScanToStore(store, "javascript:alert(1)", new Date("2026-06-13T10:00:00Z"));
@@ -181,7 +187,7 @@ describe("Quick QR Scan app shell", () => {
   });
 
   it("deletes the selected history item", () => {
-    const root = document.createElement("div");
+    const root = createRoot();
     const store = createMemoryStore();
     saveScanToStore(store, "ASSET-42", new Date("2026-06-13T10:00:00Z"));
     saveScanToStore(store, "ASSET-43", new Date("2026-06-13T10:01:00Z"));
@@ -196,7 +202,7 @@ describe("Quick QR Scan app shell", () => {
   });
 
   it("opens the history drawer with a dedicated edge trigger", () => {
-    const root = document.createElement("div");
+    const root = createRoot();
     const store = createMemoryStore();
     saveScanToStore(store, "ASSET-42", new Date("2026-06-13T10:00:00Z"));
 
@@ -208,7 +214,7 @@ describe("Quick QR Scan app shell", () => {
   });
 
   it("opens the history drawer by swiping left from the right edge", () => {
-    const root = document.createElement("div");
+    const root = createRoot();
     createScannerApp(root, { storage: createMemoryStore() });
     const edge = root.querySelector<HTMLElement>("[data-role='history-edge']");
 
@@ -219,7 +225,7 @@ describe("Quick QR Scan app shell", () => {
   });
 
   it("closes the history drawer when clicking outside it", () => {
-    const root = document.createElement("div");
+    const root = createRoot();
     const store = createMemoryStore();
     saveScanToStore(store, "ASSET-42", new Date("2026-06-13T10:00:00Z"));
 
@@ -232,7 +238,7 @@ describe("Quick QR Scan app shell", () => {
   });
 
   it("marks the app shell as no-select to prevent accidental text highlighting", () => {
-    const root = document.createElement("div");
+    const root = createRoot();
 
     createScannerApp(root, { storage: createMemoryStore() });
 
@@ -240,7 +246,7 @@ describe("Quick QR Scan app shell", () => {
   });
 
   it("shows icon actions on recent scans", () => {
-    const root = document.createElement("div");
+    const root = createRoot();
     const store = createMemoryStore();
     const clipboard = { writeText: vi.fn().mockResolvedValue(undefined) };
     const openUrl = vi.fn();
@@ -279,7 +285,7 @@ describe("Quick QR Scan app shell", () => {
     const mediaDevices = {
       getUserMedia: vi.fn().mockResolvedValue(stream),
     };
-    const root = document.createElement("div");
+    const root = createRoot();
     createScannerApp(root, {
       mediaDevices: mediaDevices as unknown as MediaDevices,
       storage: createMemoryStore(),
@@ -311,7 +317,7 @@ describe("Quick QR Scan app shell", () => {
   });
 
   it("disables automatic controls when the camera controls panel opens", () => {
-    const root = document.createElement("div");
+    const root = createRoot();
     createScannerApp(root, { storage: createMemoryStore() });
     const controls = root.querySelector<HTMLDetailsElement>("[data-role='camera-controls']");
 
@@ -323,7 +329,7 @@ describe("Quick QR Scan app shell", () => {
 
   it("defaults auto-open links off and persists changes", () => {
     const store = createMemoryStore();
-    const root = document.createElement("div");
+    const root = createRoot();
 
     createScannerApp(root, { storage: store });
 
@@ -333,14 +339,14 @@ describe("Quick QR Scan app shell", () => {
     toggle!.checked = true;
     toggle?.dispatchEvent(new Event("change"));
 
-    const nextRoot = document.createElement("div");
+    const nextRoot = createRoot();
     createScannerApp(nextRoot, { storage: store });
 
     expect(nextRoot.querySelector<HTMLInputElement>('[data-action="auto-open-links"]')?.checked).toBe(true);
   });
 
   it("prompts before opening a scanned URL when auto-open links is off", async () => {
-    const root = document.createElement("div");
+    const root = createRoot();
     const openUrl = vi.fn();
     const { mediaDevices } = createReadyCamera();
 
@@ -379,7 +385,7 @@ describe("Quick QR Scan app shell", () => {
     const store = createMemoryStore({
       "quick-qr-scan:auto-open-links:v1": "true",
     });
-    const root = document.createElement("div");
+    const root = createRoot();
     const openUrl = vi.fn();
     const { mediaDevices } = createReadyCamera();
 
