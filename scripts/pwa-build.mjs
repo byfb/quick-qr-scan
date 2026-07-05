@@ -5,11 +5,12 @@ import { fileURLToPath } from "node:url";
 
 const SERVICE_WORKER_FILE = "sw.js";
 const CACHE_PREFIX = "quick-qr-scan";
+const EXCLUDED_PRECACHE_FILES = new Set([SERVICE_WORKER_FILE, "_headers", "_redirects"]);
 
 export async function collectPrecacheUrls(distDir) {
   const files = await collectFiles(distDir);
   const urls = files
-    .filter((file) => file !== SERVICE_WORKER_FILE)
+    .filter((file) => !EXCLUDED_PRECACHE_FILES.has(file))
     .map((file) => `/${file.split(sep).join("/")}`)
     .sort();
 

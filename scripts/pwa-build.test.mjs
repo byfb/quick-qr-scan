@@ -15,6 +15,7 @@ describe("PWA service worker build", () => {
       await writeFile(join(dir, "_astro", "app.abc123.css"), "body{}");
       await writeFile(join(dir, "icons", "icon.svg"), "<svg />");
       await writeFile(join(dir, "manifest.webmanifest"), "{}");
+      await writeFile(join(dir, "_headers"), "/*\n  Cache-Control: no-cache");
       await writeFile(join(dir, "sw.js"), "old");
 
       await expect(collectPrecacheUrls(dir)).resolves.toEqual([
