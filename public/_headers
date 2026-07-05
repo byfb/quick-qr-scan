@@ -1,0 +1,9 @@
+/*
+  Permissions-Policy: camera=(self), clipboard-write=(self)
+
+/sw.js
+  Cache-Control: no-cache, no-store, must-revalidate
+  Service-Worker-Allowed: /
+
+/manifest.webmanifest
+  Cache-Control: no-cache, no-store, must-revalidate
