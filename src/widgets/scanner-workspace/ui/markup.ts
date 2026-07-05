@@ -26,6 +26,13 @@ export const scannerWorkspaceMarkup = `
 
           <details class="controls-panel" data-role="camera-controls">
             <summary>Camera controls</summary>
+            <div class="pwa-row" aria-live="polite">
+              <span class="pwa-status" data-role="offline-status">Offline cache pending</span>
+              <button class="icon-btn" data-action="refresh-app" type="button" aria-label="Refresh app" title="Refresh app" disabled>
+                ${icon("refresh")}
+                <span class="visually-hidden">Refresh app</span>
+              </button>
+            </div>
             <div class="controls-grid">
               <label class="control" data-role="zoom-control" hidden>
                 Zoom

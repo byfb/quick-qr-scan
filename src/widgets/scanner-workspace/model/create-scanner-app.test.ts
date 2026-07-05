@@ -245,6 +245,15 @@ describe("Quick QR Scan app shell", () => {
     expect(root.querySelector<HTMLElement>(".app")?.dataset.textSelect).toBe("off");
   });
 
+  it("renders offline cache status and a force-refresh action", () => {
+    const root = createRoot();
+
+    createScannerApp(root, { storage: createMemoryStore() });
+
+    expect(root.querySelector<HTMLElement>("[data-role='offline-status']")?.textContent).toContain("Offline");
+    expect(root.querySelector<HTMLButtonElement>("[data-action='refresh-app']")?.textContent).toContain("Refresh");
+  });
+
   it("shows icon actions on recent scans", () => {
     const root = createRoot();
     const store = createMemoryStore();
