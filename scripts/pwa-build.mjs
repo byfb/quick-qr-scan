@@ -65,7 +65,8 @@ self.addEventListener("fetch", (event) => {
   }
 
   if (request.mode === "navigate") {
-    event.respondWith(networkFirst(request, ["/", "/index.html"]));
+    event.respondWith(cacheFirstNavigation(request, ["/", "/index.html"]));
+    event.waitUntil(refreshNavigation(request));
     return;
   }
 
@@ -82,6 +83,27 @@ async function cacheFirst(request) {
   const cache = await caches.open(CACHE_NAME);
   cache.put(request, response.clone());
   return response;
+}
+
+async function cacheFirstNavigation(request, fallbacks) {
+  for (const fallback of fallbacks) {
+    const cached = await caches.match(fallback);
+    if (cached) {
+      return cached;
+    }
+  }
+
+  return networkFirst(request, fallbacks);
+}
+
+async function refreshNavigation(request) {
+  try {
+    const response = await fetch(request);
+    const cache = await caches.open(CACHE_NAME);
+    await cache.put(request, response.clone());
+  } catch {
+    // Offline launch must not wait for network failure.
+  }
 }
 
 async function networkFirst(request, fallbacks) {

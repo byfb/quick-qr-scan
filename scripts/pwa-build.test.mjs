@@ -43,6 +43,8 @@ describe("PWA service worker build", () => {
       expect(serviceWorker).toContain('"SKIP_WAITING"');
       expect(serviceWorker).toContain("self.skipWaiting()");
       expect(serviceWorker).toContain("request.mode === \"navigate\"");
+      expect(serviceWorker).toContain("cacheFirstNavigation(request");
+      expect(serviceWorker).not.toContain("event.respondWith(networkFirst(request");
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
