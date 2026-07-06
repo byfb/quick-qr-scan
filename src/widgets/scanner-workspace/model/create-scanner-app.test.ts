@@ -423,4 +423,40 @@ describe("Quick QR Scan app shell", () => {
     expect(openUrl).toHaveBeenCalledWith("https://example.com/check");
     expect(root.querySelector<HTMLElement>("[data-role='link-prompt']")).toBeNull();
   });
+
+  it("does not auto-open scanned URLs when offline even if auto-open links is on", async () => {
+    vi.spyOn(window.navigator, "onLine", "get").mockReturnValue(false);
+    const store = createMemoryStore({
+      "quick-qr-scan:auto-open-links:v1": "true",
+    });
+    const root = createRoot();
+    const openUrl = vi.fn();
+    const { mediaDevices } = createReadyCamera();
+
+    createScannerApp(root, {
+      storage: store,
+      mediaDevices,
+      openUrl,
+      requestFrame: createFrameRunner(),
+      cancelFrame: vi.fn(),
+      testDetections: [
+        {
+          value: "https://example.com/check",
+          points: [
+            { x: 1, y: 1 },
+            { x: 2, y: 1 },
+            { x: 2, y: 2 },
+            { x: 1, y: 2 },
+          ],
+        },
+      ],
+    });
+
+    root.querySelector<HTMLElement>("[data-role='camera-stage']")?.click();
+    await flushAsync();
+
+    expect(openUrl).not.toHaveBeenCalled();
+    expect(root.querySelector<HTMLElement>("[data-role='link-prompt']")).toBeNull();
+    expect(root.querySelector<HTMLElement>("[data-role='result']")?.textContent).toBe("https://example.com/check");
+  });
 });

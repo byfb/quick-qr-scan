@@ -834,12 +834,14 @@ export function createScannerApp(root: HTMLElement, dependencies: ScannerAppDepe
       return;
     }
 
-    if (state.autoOpenLinks) {
+    if (state.autoOpenLinks && globalThis.navigator?.onLine !== false) {
       openUrl(classified.href);
       return;
     }
 
-    showLinkPrompt(classified.href, classified.host);
+    if (!state.autoOpenLinks) {
+      showLinkPrompt(classified.href, classified.host);
+    }
   }
 
   function showLinkPrompt(href: string, host: string): void {
