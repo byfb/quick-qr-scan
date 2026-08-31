@@ -357,7 +357,7 @@ describe("Quick QR Scan app shell", () => {
   it("prompts before opening a scanned URL when auto-open links is off", async () => {
     const root = createRoot();
     const openUrl = vi.fn();
-    const { mediaDevices } = createReadyCamera();
+    const { mediaDevices, track } = createReadyCamera();
 
     createScannerApp(root, {
       storage: createMemoryStore(),
@@ -388,6 +388,9 @@ describe("Quick QR Scan app shell", () => {
     root.querySelector<HTMLButtonElement>('[data-action="confirm-open-link"]')?.click();
 
     expect(openUrl).toHaveBeenCalledWith("https://example.com/check");
+    expect(track.stop).toHaveBeenCalledOnce();
+    expect(track.stop.mock.invocationCallOrder[0]).toBeLessThan(openUrl.mock.invocationCallOrder[0]!);
+    expect(root.querySelector<HTMLVideoElement>("[data-role='video']")?.srcObject).toBeNull();
   });
 
   it("auto-opens scanned URLs without a prompt when auto-open links is on", async () => {
@@ -396,7 +399,7 @@ describe("Quick QR Scan app shell", () => {
     });
     const root = createRoot();
     const openUrl = vi.fn();
-    const { mediaDevices } = createReadyCamera();
+    const { mediaDevices, track } = createReadyCamera();
 
     createScannerApp(root, {
       storage: store,
@@ -421,6 +424,8 @@ describe("Quick QR Scan app shell", () => {
     await flushAsync();
 
     expect(openUrl).toHaveBeenCalledWith("https://example.com/check");
+    expect(track.stop).toHaveBeenCalledOnce();
+    expect(track.stop.mock.invocationCallOrder[0]).toBeLessThan(openUrl.mock.invocationCallOrder[0]!);
     expect(root.querySelector<HTMLElement>("[data-role='link-prompt']")).toBeNull();
   });
 

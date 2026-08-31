@@ -258,7 +258,7 @@ export function createScannerApp(root: HTMLElement, dependencies: ScannerAppDepe
 
     const classified = classifyScanValue(selected);
     if (classified.kind === "url") {
-      openUrl(classified.href);
+      openLinkOutsideScanner(classified.href);
     }
   });
 
@@ -785,7 +785,7 @@ export function createScannerApp(root: HTMLElement, dependencies: ScannerAppDepe
           createHistoryActionButton("open", item.value, "Open scan", icon("open"), () => {
             const classified = classifyScanValue(item.value);
             if (classified.kind === "url") {
-              openUrl(classified.href);
+              openLinkOutsideScanner(classified.href);
             }
           }),
         );
@@ -835,7 +835,7 @@ export function createScannerApp(root: HTMLElement, dependencies: ScannerAppDepe
     }
 
     if (state.autoOpenLinks && globalThis.navigator?.onLine !== false) {
-      openUrl(classified.href);
+      openLinkOutsideScanner(classified.href);
       return;
     }
 
@@ -884,8 +884,7 @@ export function createScannerApp(root: HTMLElement, dependencies: ScannerAppDepe
     openButton.dataset.action = "confirm-open-link";
     openButton.textContent = "Open link";
     openButton.addEventListener("click", () => {
-      closeLinkPrompt();
-      openUrl(href);
+      openLinkOutsideScanner(href);
     });
 
     actions.append(keepButton, openButton);
@@ -897,6 +896,16 @@ export function createScannerApp(root: HTMLElement, dependencies: ScannerAppDepe
 
   function closeLinkPrompt(): void {
     modalRoot.replaceChildren();
+  }
+
+  function openLinkOutsideScanner(href: string): void {
+    if (state.stream) {
+      stopCamera("Camera stopped to save power.");
+    } else {
+      closeLinkPrompt();
+    }
+
+    openUrl(href);
   }
 
   async function copySelectedValue(): Promise<void> {
