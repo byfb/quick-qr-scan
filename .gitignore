@@ -5,3 +5,19 @@ coverage/
 .wrangler/
 .DS_Store
 *.log
+
+# Local environment files and Cloudflare development secrets
+.env
+.env.*
+.dev.vars
+.dev.vars.*
+!.env.example
+!.env.*.example
+!.dev.vars.example
+!.dev.vars.*.example
+
+# Private keys and credential bundles
+*.key
+*.pem
+*.p12
+*.pfx
