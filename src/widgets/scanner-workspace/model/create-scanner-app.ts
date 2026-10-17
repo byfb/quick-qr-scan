@@ -821,7 +821,7 @@ export function createScannerApp(root: HTMLElement, dependencies: ScannerAppDepe
 
     if (classified.kind === "url") {
       openButton.hidden = false;
-      resultMeta.textContent = `Safe URL: ${classified.host}`;
+      resultMeta.textContent = `URL: ${classified.host}`;
     } else {
       resultMeta.textContent = "Text result";
     }

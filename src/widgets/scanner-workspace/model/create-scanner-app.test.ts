@@ -168,7 +168,7 @@ describe("Quick QR Scan app shell", () => {
     expect(root.querySelector<HTMLElement>("[data-role='status']")?.textContent).toContain("Scanning");
   });
 
-  it("opens only safe URL results from history", () => {
+  it("opens only HTTP and HTTPS URL results from history", () => {
     const root = createRoot();
     const store = createMemoryStore();
     const openUrl = vi.fn();

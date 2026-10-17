@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { classifyScanValue } from "..";
 
 describe("classifyScanValue", () => {
-  it("marks http and https URLs safe to open", () => {
+  it("classifies HTTP and HTTPS values as URLs", () => {
     expect(classifyScanValue("https://example.com/path?q=1")).toMatchObject({
       kind: "url",
       href: "https://example.com/path?q=1",
