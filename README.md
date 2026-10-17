@@ -2,6 +2,8 @@
 
 A QR code scanner for your browser. Scan with your camera, keep recent results on your device, and reopen the scanner offline.
 
+**[Try the live preview](https://quick-qr-scan.pages.dev/)**
+
 ## Features
 
 - **Tap to scan:** use your device's camera and tap the preview again to scan another code.
